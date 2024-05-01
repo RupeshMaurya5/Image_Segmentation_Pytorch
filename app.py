@@ -1,23 +1,29 @@
 import streamlit as st
-from PIL import Image
+import torch
+import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 
-model = load_model('best_model.pt')
+# Define your model architecture and load weights
+from segmentation_model import SegmentationModel
+model = SegmentationModel()
+model.load_state_dict(torch.load('path_to_your_trained_model'))
+model.eval()
 
 st.title('Image Segmentation App')
 
 uploaded_image = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
 if uploaded_image is not None:
-    image = Image.open(uploaded_image)
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+    image = cv2.imread(uploaded_image)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = preprocess_image(image)  # Perform preprocessing as per your training pipeline
 
-    # Preprocess the image for model input (resize, normalize, etc.)
-    processed_image = preprocess_image(image)
+    # Perform segmentation
+    with torch.no_grad():
+        logits_mask = model(torch.Tensor(image).unsqueeze(0))
+        pred_mask = torch.sigmoid(logits_mask)
+        pred_mask = (pred_mask > 0.5) * 255.0  # Thresholding for binary mask
 
-    # Make prediction using your model
-    segmented_image = model.predict(processed_image)
-
-    # Display the segmented image
-    st.image(segmented_image, caption='Segmented Image', use_column_width=True)
+    # Display original image and segmented mask
+    st.image(image, caption='Original Image', use_column_width=True)
+    st.image(pred_mask.squeeze(0), caption='Segmented Mask', use_column_width=True)
